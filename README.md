@@ -26,36 +26,6 @@ Semantia is a browser-native, real-time multimodal feature extraction, learning,
 
 Semantia shifts high-dimensional vector similarity computation entirely to the client's GPU. It maps raw, unstructured physical inputs (pixels and audio frequencies) into compact mathematical representations, then passes them to a unified WebGPU-powered matching system.
 
-
-```
-
-```
-   [ Live Camera ]                   [ Live Microphone ]
-          │                                   │
-          ▼                                   ▼
-  HTML5 Video/Canvas                  Web Audio Analyser
-          │                                   │
-  (9x9 Pixel Patches)                 (5x51 FFT Windows)
-          │                                   │
-          ▼                                   ▼
-  243-Dim Video Vector                255-Dim Audio Vector
-          │                                   │
-          └─────────► [ WebGPU Matcher ] ◄────┘
-                              │
-                ┌─────────────┴─────────────┐
-                ▼                           ▼
-        Feature Matching            Continuous Learning
-      (Distance Threshold)          (Dynamic Dictionary)
-                │                           │
-                └─────────────┬─────────────┘
-                              ▼
-                    [ Multimodal PMI ]
-               (Cross-Modal Co-occurrence)
-
-```
-
-```
-
 ---
 
 ## Key Features
