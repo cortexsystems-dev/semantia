@@ -170,7 +170,8 @@
     <!-- Header -->
     <div class="header">
       <h1>Semantia</h1>
-      <button class="start-btn" onclick="start()">Initialize System</button>
+      <button class="start-btn" onclick="start()">Start</button>
+      <button class="start-btn" onclick="reset()">Reset</button>
     </div>
     
     <!-- Primary Visual Outputs -->
@@ -186,7 +187,7 @@
       </div>
 
       <div class="panel panel-wide">
-        <h3>Audio Spectrogram Analysis</h3>
+        <h3>Audio Spectrogram</h3>
         <!-- Spectrogram works best with full width for timeline scrolling -->
         <canvas id="canvas2" width="800" height="150" style="width: 100%; max-width: 800px;"></canvas>
       </div>
@@ -202,7 +203,7 @@
 
   <!-- Section for dynamically appended feature canvases -->
   <div class="learned-features-container">
-    <h3>Learned Feature Dictionary</h3>
+    <h3>Learned Visual Features</h3>
   </div>
 
   <!-- Hidden elements & Scripts -->

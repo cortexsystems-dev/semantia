@@ -24,7 +24,7 @@ Semantia is a browser-native, real-time multimodal feature extraction, learning,
 
 ## Core Architecture
 
-Semantia shifts high-dimensional vector similarity computation entirely to the client's GPU. It maps raw, unstructured physical inputs (pixels and audio frequencies) into compact mathematical representations, then passes them to a unified WebGPU-powered matching system.
+Semantia optionaly computes high-dimensional vector similarity entirely on GPU. It maps raw, unstructured physical inputs (pixels and audio frequencies) into compact mathematical representations, then passes them to a unified WebGPU-powered matching system.
 
 ---
 
@@ -32,16 +32,16 @@ Semantia shifts high-dimensional vector similarity computation entirely to the c
 
 - **Real-Time WebGPU Acceleration:** Offloads computationally expensive high-dimensional distance matching to the GPU, evaluating thousands of incoming patches against a massive feature pool inside a single animation frame loop.
 - **Dynamic Feature Learning:** Automatically discovers and categorizes novel visual and acoustic structures without pre-training.
-- **Adaptive Memory Management:** Supports constraint-bounded memory (up to 1,024 video features and 1,024 audio features). When the dictionary reaches capacity, it dynamically modulates existing features to accommodate incremental environmental changes.
-- **Advanced Audio Normalization & Noise Gating:** Filters out silent frames through an analytical volume threshold and prioritizes spectral *shape* over mere *amplitude* by applying normalization vectors.
-- **Cross-Modal Semantic Association:** Evaluates rolling temporal buffers using Pointwise Mutual Information (PMI) to uncover patterns where specific visual structures consistently co-occur with specific acoustic tones.
+- **Adaptive Memory Management:** Supports constraint-bounded memory (up to 1,024 video features and 1,024 audio features). When the memory reaches capacity, it dynamically modulates existing features to accommodate incremental environmental changes.
+- **Advanced Audio Normalization & Noise Gating:** Filters out silent frames through a volume threshold and prioritizes spectral *shape* over mere *amplitude* through normalization.
+- **Cross-Modal Semantic Association:** Evaluates rolling temporal buffers using Pointwise Mutual Information (PMI) to uncover patterns where specific visual structures consistently co-occur with specific acoustic patterns.
 
 ---
 
 ## How It Works
 
 ### Video Pipeline
-1. **Frame Capture:** Live webcam streams feed into an HTML5 `<video>` element and are painted to an offscreen `<canvas>`.
+1. **Frame Capture:** Live webcam streams feed into an HTML5 `<video>` element.
 2. **Patch Extraction:** The frame is decomposed into regional matrix segments (such as 9x9 pixel blocks with 3 color channels, creating a 243-dimensional vector).
 3. **GPU Distance Evaluation:** The WebGPU `FeatureMatcher` calculates matching scores across the pool.
 4. **Learn vs. Modulate:**

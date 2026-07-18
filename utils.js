@@ -195,3 +195,12 @@ function loadFeatures() {
         console.log("No previously saved features found. Starting fresh.");
     }
 }
+
+function reset() {
+    let confirmed = window.confirm("WARNING: all data will be erased. Continue?")
+    
+    if (confirmed) {
+        localStorage.removeItem('savedMediaFeatures')
+        window.location.reload()
+    }
+}
