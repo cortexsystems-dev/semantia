@@ -136,3 +136,62 @@ function highlight(id, x, y, canvas) {
         }
     }
 }
+
+/**
+ * Saves the current state of learned audio and video features to localStorage.
+ */
+function saveFeatures() {
+    try {
+        const featureData = {
+            // Convert Uint8Arrays to standard arrays for JSON serialization
+            videoFeatures: learnedVideoFeatures.map(feature => Array.from(feature)),
+            audioFeatures: learnedAudioFeatures.map(feature => Array.from(feature)),
+            videoCount: videoFeatureCount,
+            audioCount: audioFeatureCount
+        };
+
+        localStorage.setItem('savedMediaFeatures', JSON.stringify(featureData));
+        console.log(`Saved ${videoFeatureCount} video features and ${audioFeatureCount} audio features.`);
+    } catch (error) {
+        console.error("Failed to save features to localStorage:", error);
+    }
+}
+
+/**
+ * Loads previously saved features from localStorage, pushes them to the GPU,
+ * and recreates their visual canvas elements in the DOM.
+ */
+function loadFeatures() {
+    const savedData = localStorage.getItem('savedMediaFeatures');
+    
+    if (savedData) {
+        try {
+            const parsedData = JSON.parse(savedData);
+
+            // Restore Video Features
+            videoFeatureCount = parsedData.videoCount;
+            learnedVideoFeatures = parsedData.videoFeatures.map(f => new Uint8Array(f));
+            
+            for (let i = 0; i < videoFeatureCount; i++) {
+                videoMatcher.learnFeature(i, learnedVideoFeatures[i]);
+                
+                // NEW: Rebuild the DOM elements for the saved video features
+                paintVector(learnedVideoFeatures[i], true, 0, 0, i, true);
+            }
+
+            // Restore Audio Features
+            audioFeatureCount = parsedData.audioCount;
+            learnedAudioFeatures = parsedData.audioFeatures.map(f => new Uint8Array(f));
+            
+            for (let i = 0; i < audioFeatureCount; i++) {
+                audioMatcher.learnFeature(i, learnedAudioFeatures[i]);
+            }
+
+            console.log(`Successfully loaded ${videoFeatureCount} video features and ${audioFeatureCount} audio features.`);
+        } catch (error) {
+            console.error("Failed to parse and load features from localStorage:", error);
+        }
+    } else {
+        console.log("No previously saved features found. Starting fresh.");
+    }
+}

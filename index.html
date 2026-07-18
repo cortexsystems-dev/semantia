@@ -1,17 +1,211 @@
 <!DOCTYPE html>
-
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantia</title>
+  
+  <style>
+    /* Color Palette & Base Variables */
+    :root {
+      --bg-main: #0a0b10;
+      --bg-panel: #161925;
+      --accent-color: #00FF00; /* Matches the highlight stroke in utils.js */
+      --text-main: #e2e8f0;
+      --text-muted: #8b949e;
+      --border-radius: 12px;
+    }
 
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Main Application Wrapper */
+    .app-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Top Header Section */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      background: var(--bg-panel);
+      border-radius: var(--border-radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      border: 1px solid #2a2d3d;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .header h1 span {
+      color: var(--accent-color);
+    }
+
+    /* Start Button Styling */
+    button.start-btn {
+      background-color: var(--accent-color);
+      color: #000;
+      border: none;
+      padding: 12px 28px;
+      font-size: 1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 255, 0, 0.2);
+      transition: all 0.2s ease-in-out;
+    }
+
+    button.start-btn:hover {
+      background-color: #33ff33;
+      box-shadow: 0 6px 16px rgba(0, 255, 0, 0.4);
+      transform: translateY(-1px);
+    }
+
+    button.start-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Dashboard Grid for Canvases */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    /* Individual Panel Styling */
+    .panel {
+      background: var(--bg-panel);
+      padding: 20px;
+      border-radius: var(--border-radius);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      border: 1px solid #2a2d3d;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .panel-wide {
+      grid-column: 1 / -1;
+    }
+
+    .panel h3 {
+      margin: 0 0 15px 0;
+      width: 100%;
+      border-bottom: 1px solid #2a2d3d;
+      padding-bottom: 10px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Core Canvas Elements */
+    .panel canvas {
+      background-color: #000;
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 1px #333;
+    }
+
+    /* Stats Readout */
+    #vistats {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 1.1rem;
+      margin: 0;
+      color: var(--accent-color);
+    }
+
+    /* Dynamically Appended Learned Features Dictionary */
+    .learned-features-container {
+      max-width: 1000px;
+      margin: 40px auto 0 auto;
+    }
+
+    .learned-features-container h3 {
+      color: var(--text-muted);
+      border-top: 2px dashed var(--bg-panel);
+      padding-top: 20px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Styling for the appended feature canvases from image.js */
+    canvas[id]:not(#canvas):not(#canvas2):not(#canvas3) {
+      margin: 4px;
+      border-radius: 4px;
+      border: 1px solid #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      transition: border-color 0.2s;
+    }
+    
+    /* Ensure the inline spans separating canvases don't break layout wildly */
+    span { 
+      display: inline-block; 
+      width: 2px; 
+    }
+
+  </style>
 </head>
 
 <body>
-  <button onclick="start()">Start</button>
-  <canvas id="canvas" width="200px" height="200px"></canvas>
-  <canvas id="canvas2" width="300px" height="100px"></canvas>
-  <canvas id="canvas3" width="200px" height="200px"></canvas>
-  <h3>Visual Stats:</h3>
-  <p id="vistats"></p>
+  
+  <div class="app-container">
+    
+    <!-- Header -->
+    <div class="header">
+      <h1>Semantia</h1>
+      <button class="start-btn" onclick="start()">Initialize System</button>
+    </div>
+    
+    <!-- Primary Visual Outputs -->
+    <div class="dashboard">
+      <div class="panel">
+        <h3>Live Video Feed</h3>
+        <canvas id="canvas" width="200" height="200"></canvas>
+      </div>
+      
+      <div class="panel">
+        <h3>Visual Feature Pool</h3>
+        <canvas id="canvas3" width="200" height="200"></canvas>
+      </div>
+
+      <div class="panel panel-wide">
+        <h3>Audio Spectrogram Analysis</h3>
+        <!-- Spectrogram works best with full width for timeline scrolling -->
+        <canvas id="canvas2" width="800" height="150" style="width: 100%; max-width: 800px;"></canvas>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="panel panel-wide">
+      <h3>System Statistics</h3>
+      <p id="vistats">Awaiting system initialization...</p>
+    </div>
+
+  </div>
+
+  <!-- Section for dynamically appended feature canvases -->
+  <div class="learned-features-container">
+    <h3>Learned Feature Dictionary</h3>
+  </div>
+
+  <!-- Hidden elements & Scripts -->
   <div style="display:none"><video id="video"></video></div>
   <script src="utils.js"></script>
   <script src="gpu4.js"></script>
@@ -20,3 +214,4 @@
   <script src="audio.js"></script>
 
 </body>
+</html>

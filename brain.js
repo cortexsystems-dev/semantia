@@ -36,9 +36,13 @@ async function start() {
   videoMatcher = new FeatureMatcher(MAX_VIDEO_FEATURES, 1024, 243);
   videoMatcher.init();
 
-  // Create audio matcher: max 4096 features, 1 vector per frame, 51 elements per vector
-  audioMatcher = new FeatureMatcher(MAX_AUDIO_FEATURES, 1, 51);
+  // Create audio matcher: max 4096 features, 1 vector per frame, 255 elements per vector
+  audioMatcher = new FeatureMatcher(MAX_AUDIO_FEATURES, 1, 255);
   audioMatcher.init();
+
+  loadFeatures()
+
+  setInterval(saveFeatures, 30000)
 
   // 2. Start Video Stream
   navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -208,6 +212,8 @@ async function processAudioFeatures(analyser) {
     normalize(combinedVector);
 
     let vectors = [combinedVector];
+
+    console.log(vectors)
 
     if (learnedAudioFeatures.length === 0) {
       audioMatcher.learnFeature(0, vectors[0]);
