@@ -138,69 +138,133 @@ function highlight(id, x, y, canvas) {
 }
 
 /**
- * Saves the current state of learned audio and video features to localStorage.
+ * Promisified database initializer. 
+ * Guarantees the database and tables exist before resolving.
  */
-function saveFeatures() {
-    try {
-        const featureData = {
-            // Convert Uint8Arrays to standard arrays for JSON serialization
-            videoFeatures: learnedVideoFeatures.map(feature => Array.from(feature)),
-            audioFeatures: learnedAudioFeatures.map(feature => Array.from(feature)),
-            videoCount: videoFeatureCount,
-            audioCount: audioFeatureCount
+function initDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('CognitiveSystemDB_v3', 1);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('systemState')) {
+                db.createObjectStore('systemState');
+            }
         };
 
-        localStorage.setItem('savedMediaFeatures', JSON.stringify(featureData));
-        console.log(`Saved ${videoFeatureCount} video features and ${audioFeatureCount} audio features.`);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
+/**
+ * Helper to safely wrap IndexedDB store operations in clean Promises.
+ */
+function getStorageItem(store, key) {
+    return new Promise((resolve, reject) => {
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * Saves the entire application state comprehensively to IndexedDB.
+ */
+async function saveState() {
+    try {
+        const db = await initDatabase();
+        const tx = db.transaction('systemState', 'readwrite');
+        const store = tx.objectStore('systemState');
+
+        // IndexedDB natively stores binary Uint8Arrays without stringifying them
+        store.put(videoFeatureCount, 'videoFeatureCount');
+        store.put(audioFeatureCount, 'audioFeatureCount');
+        store.put(learnedVideoFeatures, 'learnedVideoFeatures');
+        store.put(learnedAudioFeatures, 'learnedAudioFeatures');
+        store.put(vidcounts, 'vidcounts');
+        store.put(audcounts, 'audcounts');
+        store.put(pairs, 'pairs');
+        store.put(pairsPmi, 'pairsPmi');
+
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
+
+        console.log("System state safely saved to IndexedDB.");
     } catch (error) {
-        console.error("Failed to save features to localStorage:", error);
+        console.error("Failed to save state:", error);
     }
 }
 
 /**
- * Loads previously saved features from localStorage, pushes them to the GPU,
- * and recreates their visual canvas elements in the DOM.
+ * Loads the complete system state sequentially from IndexedDB.
  */
-function loadFeatures() {
-    const savedData = localStorage.getItem('savedMediaFeatures');
-    
-    if (savedData) {
-        try {
-            const parsedData = JSON.parse(savedData);
+async function loadState() {
+    try {
+        const db = await initDatabase();
+        const tx = db.transaction('systemState', 'readonly');
+        const store = tx.objectStore('systemState');
 
-            // Restore Video Features
-            videoFeatureCount = parsedData.videoCount;
-            learnedVideoFeatures = parsedData.videoFeatures.map(f => new Uint8Array(f));
-            
-            for (let i = 0; i < videoFeatureCount; i++) {
+        // Read the primary check variable inside the active transaction window
+        const savedVideoCount = await getStorageItem(store, 'videoFeatureCount');
+
+        if (savedVideoCount === undefined) {
+            console.log("Database active. No previous records found. Starting fresh.");
+            return;
+        }
+
+        // Pull the rest of the payloads sequentially
+        videoFeatureCount = savedVideoCount;
+        audioFeatureCount = await getStorageItem(store, 'audioFeatureCount') || 0;
+        learnedVideoFeatures = await getStorageItem(store, 'learnedVideoFeatures') || [];
+        learnedAudioFeatures = await getStorageItem(store, 'learnedAudioFeatures') || [];
+        vidcounts = await getStorageItem(store, 'vidcounts') || [];
+        audcounts = await getStorageItem(store, 'audcounts') || [];
+        pairs = await getStorageItem(store, 'pairs') || {};
+        pairsPmi = await getStorageItem(store, 'pairsPmi') || {};
+
+        // Sync GPU Memory and rebuild UI elements for Video
+        for (let i = 0; i < videoFeatureCount; i++) {
+            if (learnedVideoFeatures[i]) {
                 videoMatcher.learnFeature(i, learnedVideoFeatures[i]);
-                
-                // NEW: Rebuild the DOM elements for the saved video features
                 paintVector(learnedVideoFeatures[i], true, 0, 0, i, true);
             }
+        }
 
-            // Restore Audio Features
-            audioFeatureCount = parsedData.audioCount;
-            learnedAudioFeatures = parsedData.audioFeatures.map(f => new Uint8Array(f));
-            
-            for (let i = 0; i < audioFeatureCount; i++) {
+        // Sync GPU Memory for Audio
+        for (let i = 0; i < audioFeatureCount; i++) {
+            if (learnedAudioFeatures[i]) {
                 audioMatcher.learnFeature(i, learnedAudioFeatures[i]);
             }
-
-            console.log(`Successfully loaded ${videoFeatureCount} video features and ${audioFeatureCount} audio features.`);
-        } catch (error) {
-            console.error("Failed to parse and load features from localStorage:", error);
         }
-    } else {
-        console.log("No previously saved features found. Starting fresh.");
+
+        console.log(`Successfully restored state: ${videoFeatureCount} video & ${audioFeatureCount} audio features.`);
+    } catch (error) {
+        console.error("Failed to restore state from IndexedDB:", error);
     }
 }
 
-function reset() {
-    let confirmed = window.confirm("WARNING: all data will be erased. Continue?")
-    
-    if (confirmed) {
-        localStorage.removeItem('savedMediaFeatures')
-        window.location.reload()
+/**
+ * Completely clears the database store and refreshes the application.
+ */
+async function reset() {
+    if (!confirm("Are you sure you want to reset? This wipes everything.")) {
+        return;
+    }
+    try {
+        const db = await initDatabase();
+        const tx = db.transaction('systemState', 'readwrite');
+        tx.objectStore('systemState').clear();
+
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+        });
+
+        window.location.reload();
+    } catch (error) {
+        console.error("Reset failed:", error);
     }
 }

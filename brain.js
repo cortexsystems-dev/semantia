@@ -12,7 +12,6 @@ let audioMatcher;
 // Video State
 let videoFeatureCount = 0;
 let learnedVideoFeatures = [];
-let poolCount = 0;
 
 // Audio State
 let audioFeatureCount = 0;
@@ -40,9 +39,9 @@ async function start() {
   audioMatcher = new FeatureMatcher(MAX_AUDIO_FEATURES, 1, 255);
   audioMatcher.init();
 
-  loadFeatures()
+  await loadState();
 
-  setInterval(saveFeatures, 30000)
+  setInterval(saveState, 30000)
 
   // 2. Start Video Stream
   navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -212,8 +211,6 @@ async function processAudioFeatures(analyser) {
     normalize(combinedVector);
 
     let vectors = [combinedVector];
-
-    console.log(vectors)
 
     if (learnedAudioFeatures.length === 0) {
       audioMatcher.learnFeature(0, vectors[0]);
