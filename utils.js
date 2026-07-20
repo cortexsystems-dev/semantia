@@ -15,7 +15,7 @@ function poolCompare(v, learned) {
 
 function modFeature(a, b) {
     for (let i = 0; i < a.length; i++) {
-        a[i] += ((b[i] - a[i]) * 0.05)
+        a[i] += ((b[i] - a[i]) * 0.02)
     }
 }
 
@@ -52,25 +52,28 @@ function computePmi() {
 
     if (vidWindow.length > 4840) {
 
+        if (audWindow.length > 0) {
+
+            vidWindow.forEach(vidIndex => {
+                vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1
+            })
+        }
+
         audWindow.forEach(audIndex => {
             vidWindow.forEach(vidIndex => {
 
-                let key = String(audIndex)
+                let key = String(vidIndex)
 
-                pairs[vidIndex][key] = (pairs[vidIndex][key] || 0) + 1
+                pairs[audIndex][key] = (pairs[audIndex][key] || 0) + 1
 
                 let a = audcounts[audIndex]
                 let b = vidcounts[vidIndex]
-                let c = pairs[vidIndex][key]
+                let c = pairs[audIndex][key]
 
-                let pmi = calcRelPMI(a, b, c)
-                try{
-                pairsPmi[vidIndex][key] = pmi
-                }
-                catch(e){
-                    alert("error")
-                    console.log()
-                }
+                let pmi = correlate(a, b, c)
+         
+                pairsPmi[audIndex][key] = pmi
+             
 
             })
         })
@@ -79,83 +82,45 @@ function computePmi() {
     }
 }
 
-/**
- * Calculates a relative PMI approximation for continuous media streams without needing N.
- * Handles the condition where Audio (A) occurs without Video (B).
- * 
- * @param {number} countA - Total duration or frame count where Audio is present.
- * @param {number} countB - Total duration or frame count where Video feature is present.
- * @param {number} coCountAB - Joint duration/frames where both Audio and Video occur together.
- * @returns {Object} Relative affinity metrics.
- */
-function calcRelPMI(countA, countB, coCountAB) {
-    // Guard against division by zero
-    if (countA === 0 || countB === 0 || coCountAB === 0) {
-        return { relativePmi: -Infinity, ratioAWithoutB: 1.0 };
+function correlate(a,b,c){
+    return c / (a + b)
+}
+
+function getNBest(n, id) {
+
+    let valObj = JSON.parse(JSON.stringify(pairsPmi[id]))
+
+    let best = []
+
+    for (let i = 0; i < n; i++) {
+        let max = -10
+        let winner = undefined
+
+        Object.keys(valObj).forEach(vId => {
+            if (valObj[vId] >= max) {
+                winner = Number(vId)
+                max = valObj[vId]
+            }
+        })
+
+        best.push(winner)
+
+        delete valObj[String(winner)]
+
     }
+    return best
 
-    // 1. Calculate how often Audio appears completely WITHOUT Video
-    const countAWithoutB = countA - coCountAB;
-    const ratioAWithoutB = Math.abs(countAWithoutB / countA);
 
-    // 2. Approximate PMI by removing N from the core ratio.
-    // This represents the raw multiplier of joint presence over independent presence.
-    const coreRatio = coCountAB / (countA * countB);
-    const relativePmi = Math.log2(coreRatio);
-
-    return {
-        relativePmi: parseFloat(relativePmi.toFixed(4)), // Shifted by a constant of -log2(N)
-        ratioAWithoutB: parseFloat(ratioAWithoutB.toFixed(4)), // 0 = always together, 1 = never together
-        coOccurrenceRateInA: parseFloat((coCountAB / countA).toFixed(4)) // P(B|A)
-    };
 }
-
-
-/* 
-Output:
-{ 
-  relativePmi: -13.3896,       <-- Use this to compare against other audio/video pairs
-  ratioAWithoutB: 0.8889,      <-- 88.89% of the audio happened without the video
-  coOccurrenceRateInA: 0.1111  <-- Only 11.11% of audio co-occurred with video
-}
-*/
 
 function highlight(id, x, y, canvas) {
+    let ctx = canvas.getContext("2d")
+    // Set the border (stroke) color
+    ctx.strokeStyle = '#00FF00'; // Bright green
+    ctx.lineWidth = 1;
 
-    for (let i = 0; i < audWindow.length; i++) {
-
-        let key = String(audWindow[i])
-
-        let pmiInfo = pairsPmi[id][key]
-        if (pmiInfo) {
-
-            let keys = Object.keys(pairsPmi[id])
-
-            let val = pmiInfo.ratioAWithoutB
-            let winner = true
-
-            //inhibit expression if another sound has higher PMI
-            keys.forEach(key => {
-                if (pairsPmi[id][key] < val){
-                    winner = false
-                }
-            })
-
-            if (val < 0.1 && winner) {
-
-                let ctx = canvas.getContext("2d")
-                // Set the border (stroke) color
-                ctx.strokeStyle = '#00FF00'; // Bright green
-                ctx.lineWidth = 1;
-
-                // Draw an unfilled square
-                ctx.strokeRect(x, y, 9, 9);
-                return
-
-
-            }
-        }
-    }
+    // Draw an unfilled square
+    ctx.strokeRect(x, y, 9, 9);
 }
 
 /**

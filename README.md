@@ -4,7 +4,7 @@
 [![WebGPU](https://img.shields.io/badge/Accelerated_by-WebGPU-blueviolet.svg)](#)
 [![WebAudio](https://img.shields.io/badge/Audio-Web_Audio_API-blue.svg)](#)
 
-Semantia is a browser-native, real-time multimodal feature extraction, learning, and matching engine. Powered by **WebGPU** for massive parallel acceleration and the **Web Audio API**, it continuously analyzes live camera and microphone streams, builds a dynamic dictionary of sensory features on the fly, and calculates their cross-modal correlations using Pointwise Mutual Information (PMI).
+Semantia is a browser-native, real-time multimodal feature extraction, learning, and matching engine. Powered by **WebGPU** for massive parallel acceleration and the **Web Audio API**, it continuously analyzes live camera and microphone streams, builds a dynamic dictionary of sensory features on the fly, and calculates their cross-modal correlations.
 
 ---
 
@@ -15,7 +15,7 @@ Semantia is a browser-native, real-time multimodal feature extraction, learning,
 - [How It Works](#how-it-works)
   - [Video Pipeline](#video-pipeline)
   - [Audio Pipeline](#audio-pipeline)
-  - [Multimodal Association (PMI)](#multimodal-association-pmi)
+  - [Multimodal Association](#multimodal-association)
 - [Installation & Setup](#installation--setup)
 - [API & Core State Reference](#api--core-state-reference)
 - [License](#license)
@@ -34,7 +34,7 @@ Semantia optionaly computes high-dimensional vector similarity entirely on GPU. 
 - **Dynamic Feature Learning:** Automatically discovers and categorizes novel visual and acoustic structures without pre-training.
 - **Adaptive Memory Management:** Supports constraint-bounded memory (up to 1,024 video features and 1,024 audio features). When the memory reaches capacity, it dynamically modulates existing features to accommodate incremental environmental changes.
 - **Advanced Audio Normalization & Noise Gating:** Filters out silent frames through a volume threshold and prioritizes spectral *shape* over mere *amplitude* through normalization.
-- **Cross-Modal Semantic Association:** Evaluates rolling temporal buffers using Pointwise Mutual Information (PMI) to uncover patterns where specific visual structures consistently co-occur with specific acoustic patterns.
+- **Cross-Modal Semantic Association:** Evaluates rolling temporal buffers to uncover patterns where specific visual structures consistently co-occur with specific acoustic patterns.
 
 ---
 
@@ -55,7 +55,7 @@ Semantia optionaly computes high-dimensional vector similarity entirely on GPU. 
 4. **Noise Gate & Shape Normalization:** A noise gate discards signatures dropping below a baseline volume threshold. Surviving vectors are normalized to isolate purely spectral properties.
 5. **GPU Evaluation:** The composite audio vector is sent to the WebGPU instance to categorize the acoustic signature (distance threshold `> 2000`).
 
-### Multimodal Association (PMI)
+### Multimodal Association
 The engine records every matched feature index into parallel rolling temporal arrays (`vidWindow` and `audWindow`). On every animation frame, `computePmi()` analyzes these arrays to compute the statistical probability of a video feature and audio feature occurring together vs. occurring independently. 
 
 ---
@@ -107,7 +107,7 @@ The execution state is governed by a series of global primitives and structural 
 | `learnedVideoFeatures` | `Array` | Store of raw extracted 243-dimensional video structural patches. |
 | `learnedAudioFeatures` | `Array` | Store of raw extracted 255-dimensional flattened audio frequency arrays. |
 | `vidWindow` / `audWindow` | `Array` | Sequential histories tracking historical indices for temporal cross-correlation. |
-| `pairsPmi` | `Object` | Key-value mapping matrix holding computed Pointwise Mutual Information associative scores. |
+| `pairsPmi` | `Object` | Key-value mapping matrix holding computed associative scores. |
 
 ---
 

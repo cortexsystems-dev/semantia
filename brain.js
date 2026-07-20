@@ -25,6 +25,8 @@ let pairsPmi = []
 let vidcounts = []
 let audcounts = []
 
+let toHighlight = []
+
 // --- Main Initialization ---
 async function start() {
 
@@ -94,9 +96,6 @@ async function drawVideo() {
   // Initialize the first video feature
   if (learnedVideoFeatures.length == 0) {
     videoMatcher.learnFeature(0, vectors[0]);
-    pairs[0]  = {}
-    pairsPmi[0]  = {}
-    vidcounts[videoFeatureCount] = (vidcounts[videoFeatureCount] || 0) + 1
     videoFeatureCount++;
     learnedVideoFeatures.push(vectors[0]);
     paintVector(learnedVideoFeatures[0], true, 0, 0, 0, true);
@@ -127,9 +126,6 @@ async function drawVideo() {
         learnedVideoFeatures.push(vector);
         pool.push(videoFeatureCount);
         vidWindow.push(videoFeatureCount)
-        vidcounts[videoFeatureCount] = (vidcounts[videoFeatureCount] || 0) + 1
-        pairs[videoFeatureCount] = {}
-        pairsPmi[videoFeatureCount]  = {}
         videoFeatureCount++;
       
 
@@ -140,12 +136,10 @@ async function drawVideo() {
           pool.push(bestIndex);
           vidWindow.push(bestIndex)
           paintVector(learnedVideoFeatures[bestIndex], true, 0, 0, bestIndex, false);
-          vidcounts[bestIndex] = (vidcounts[bestIndex] || 0) + 1
         }
       }
     } else {
       pool.push(bestIndex);
-      vidcounts[bestIndex] = (vidcounts[best] || 0) + 1
       vidWindow.push(bestIndex)
     }
   }
@@ -163,6 +157,7 @@ async function drawVideo() {
     `Video Features: ${videoFeatureCount} | Audio Features: ${audioFeatureCount}`;
 
   computePmi()
+  toHighlight =  []
 
   requestAnimationFrame(drawVideo);
 }
@@ -176,6 +171,7 @@ async function processAudioFeatures(analyser) {
   let slidingWindow = [];
 
   async function analyzeAudio() {
+
     analyser.getByteFrequencyData(dataArray);
 
     // Reduce current frame to 51 bins
@@ -206,7 +202,7 @@ async function processAudioFeatures(analyser) {
     }
     let averageVolume = totalVolume / combinedVector.length;
 
-    if (averageVolume < 10) {
+    if (averageVolume < 8) {
       // We still tick the frame forward, but we don't learn/match silence
       requestAnimationFrame(analyzeAudio);
       return;
@@ -220,7 +216,8 @@ async function processAudioFeatures(analyser) {
     if (learnedAudioFeatures.length === 0) {
       audioMatcher.learnFeature(0, vectors[0]);
       audcounts[audioFeatureCount] = (audcounts[audioFeatureCount] || 0) + 1
-
+      pairs[0] = {}
+      pairsPmi[0] = {}
       audioFeatureCount++;
       learnedAudioFeatures.push(vectors[0]);
       audWindow.push(0)
@@ -232,12 +229,14 @@ async function processAudioFeatures(analyser) {
     let best = bestMatches[0];
     let bestIndex = bestMatches[1];
 
-    if (best > 2000 || bestIndex === -1) {
+    if (best > 3000 || bestIndex === -1) {
       if (audioFeatureCount < MAX_AUDIO_FEATURES) {
         audioMatcher.learnFeature(audioFeatureCount, vectors[0]);
         learnedAudioFeatures.push(vectors[0]);
         audcounts[audioFeatureCount] = (audcounts[audioFeatureCount] || 0) + 1
         audWindow.push(audioFeatureCount)
+        pairs[audioFeatureCount] = {}
+        pairsPmi[audioFeatureCount] = {}
         audioFeatureCount++;
       } else {
         if (bestIndex !== -1 && learnedAudioFeatures[bestIndex]) {
@@ -254,6 +253,8 @@ async function processAudioFeatures(analyser) {
       ] || 0) + 1
       audWindow.push(bestIndex)
     }
+
+    toHighlight =  getNBest(12,audWindow[audWindow.length-1])
 
     requestAnimationFrame(analyzeAudio);
   }

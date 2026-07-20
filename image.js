@@ -94,7 +94,10 @@ function paintVector(rgbArray, feature = true, x = 0, y = 0, id = undefined, app
         }
         else {
             ctx.putImageData(imageData, x, y)
-            highlight(id, x, y, cnvs)
+            if (toHighlight.includes(id)){
+                 highlight(id, x, y, cnvs)
+            }
+           
         }
     }
     catch (e) {
