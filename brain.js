@@ -20,8 +20,8 @@ let learnedAudioFeatures = [];
 let vidWindow = []
 let audWindow = []
 
-let pairs = {}
-let pairsPmi = {}
+let pairs = []
+let pairsPmi = []
 let vidcounts = []
 let audcounts = []
 
@@ -94,6 +94,8 @@ async function drawVideo() {
   // Initialize the first video feature
   if (learnedVideoFeatures.length == 0) {
     videoMatcher.learnFeature(0, vectors[0]);
+    pairs[0]  = {}
+    pairsPmi[0]  = {}
     vidcounts[videoFeatureCount] = (vidcounts[videoFeatureCount] || 0) + 1
     videoFeatureCount++;
     learnedVideoFeatures.push(vectors[0]);
@@ -126,7 +128,10 @@ async function drawVideo() {
         pool.push(videoFeatureCount);
         vidWindow.push(videoFeatureCount)
         vidcounts[videoFeatureCount] = (vidcounts[videoFeatureCount] || 0) + 1
+        pairs[videoFeatureCount] = {}
+        pairsPmi[videoFeatureCount]  = {}
         videoFeatureCount++;
+      
 
       } else {
         if (bestIndex !== -1 && learnedVideoFeatures[bestIndex]) {
@@ -201,7 +206,7 @@ async function processAudioFeatures(analyser) {
     }
     let averageVolume = totalVolume / combinedVector.length;
 
-    if (averageVolume < 5) {
+    if (averageVolume < 10) {
       // We still tick the frame forward, but we don't learn/match silence
       requestAnimationFrame(analyzeAudio);
       return;

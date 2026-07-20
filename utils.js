@@ -54,15 +54,23 @@ function computePmi() {
 
         audWindow.forEach(audIndex => {
             vidWindow.forEach(vidIndex => {
-                let key = String(audIndex + "," + vidIndex)
-                pairs[key] = (pairs[key] || 0) + 1
+
+                let key = String(audIndex)
+
+                pairs[vidIndex][key] = (pairs[vidIndex][key] || 0) + 1
 
                 let a = audcounts[audIndex]
                 let b = vidcounts[vidIndex]
-                let c = pairs[key]
+                let c = pairs[vidIndex][key]
 
                 let pmi = calcRelPMI(a, b, c)
-                pairsPmi[key] = pmi
+                try{
+                pairsPmi[vidIndex][key] = pmi
+                }
+                catch(e){
+                    alert("error")
+                    console.log()
+                }
 
             })
         })
@@ -115,12 +123,25 @@ Output:
 function highlight(id, x, y, canvas) {
 
     for (let i = 0; i < audWindow.length; i++) {
-        let key = String(audWindow[i] + "," + id)
 
-        let pmiInfo = pairsPmi[key]
+        let key = String(audWindow[i])
+
+        let pmiInfo = pairsPmi[id][key]
         if (pmiInfo) {
+
+            let keys = Object.keys(pairsPmi[id])
+
             let val = pmiInfo.ratioAWithoutB
-            if (val < 0.1) {
+            let winner = true
+
+            //inhibit expression if another sound has higher PMI
+            keys.forEach(key => {
+                if (pairsPmi[id][key] < val){
+                    winner = false
+                }
+            })
+
+            if (val < 0.1 && winner) {
 
                 let ctx = canvas.getContext("2d")
                 // Set the border (stroke) color
