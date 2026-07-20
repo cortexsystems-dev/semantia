@@ -215,7 +215,6 @@ async function processAudioFeatures(analyser) {
 
     if (learnedAudioFeatures.length === 0) {
       audioMatcher.learnFeature(0, vectors[0]);
-      audcounts[audioFeatureCount] = (audcounts[audioFeatureCount] || 0) + 1
       pairs[0] = {}
       pairsPmi[0] = {}
       audioFeatureCount++;
@@ -233,7 +232,6 @@ async function processAudioFeatures(analyser) {
       if (audioFeatureCount < MAX_AUDIO_FEATURES) {
         audioMatcher.learnFeature(audioFeatureCount, vectors[0]);
         learnedAudioFeatures.push(vectors[0]);
-        audcounts[audioFeatureCount] = (audcounts[audioFeatureCount] || 0) + 1
         audWindow.push(audioFeatureCount)
         pairs[audioFeatureCount] = {}
         pairsPmi[audioFeatureCount] = {}
@@ -242,15 +240,11 @@ async function processAudioFeatures(analyser) {
         if (bestIndex !== -1 && learnedAudioFeatures[bestIndex]) {
           modFeature(learnedAudioFeatures[bestIndex], vectors[0]);
           audioMatcher.learnFeature(bestIndex, learnedAudioFeatures[bestIndex]);
-          audcounts[bestIndex] = (audcounts[bestIndex] || 0) + 1
-
           audWindow.push(bestIndex)
         }
       }
     }
     else {
-      audcounts[bestIndex] = (audcounts[bestIndex
-      ] || 0) + 1
       audWindow.push(bestIndex)
     }
 

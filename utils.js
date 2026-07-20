@@ -47,44 +47,62 @@ function normalize(data) {
 
 }
 
+// Global Configuration
+const DECAY = 0.999; // Retains memory across roughly 1,000 frame-blocks to find stable linguistic rules
+const SMOOTHING = 1.0; // Stabilizes rare pairings from blowing up early on
+
 function computePmi() {
-    //10 frame check
-
+    // 10 frame-block token accumulation boundary
     if (vidWindow.length > 4840) {
-
         if (audWindow.length > 0) {
+            
+            // 1. Decay token histories gently so the system is slightly weighted toward recent semantics
+            for (let key in audcounts) audcounts[key] *= DECAY;
+            for (let key in vidcounts) vidcounts[key] *= DECAY;
+            for (let aKey in pairs) {
+                for (let vKey in pairs[aKey]) {
+                    pairs[aKey][vKey] *= DECAY;
+                }
+            }
 
-            vidWindow.forEach(vidIndex => {
-                vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1
-            })
+            // 2. Identify unique structural tokens present in this temporal slice
+            const uniqueAud = [...new Set(audWindow)];
+            const uniqueVid = [...new Set(vidWindow)];
+
+            // 3. Increment historical contexts
+            uniqueAud.forEach(audIndex => audcounts[audIndex] = (audcounts[audIndex] || 0) + 1);
+            uniqueVid.forEach(vidIndex => vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1);
+
+            // 4. Map cross-modal pairs and calculate Sørensen-Dice correlation
+            uniqueAud.forEach(audIndex => {
+                uniqueVid.forEach(vidIndex => {
+                    let key = String(vidIndex);
+                    
+                    if (!pairs[audIndex]) pairs[audIndex] = {};
+                    if (!pairsPmi[audIndex]) pairsPmi[audIndex] = {};
+
+                    pairs[audIndex][key] = (pairs[audIndex][key] || 0) + 1;
+
+                    let a = audcounts[audIndex];
+                    let b = vidcounts[vidIndex];
+                    let c = pairs[audIndex][key];
+
+                    // 5. Normalization bounded explicitly between 0.0 and 1.0
+                    // Perfect alignment yields 1.0; unaligned noise drops near 0
+                    let diceScore = (2 * c) / (a + b + SMOOTHING);
+                    
+                    pairsPmi[audIndex][key] = diceScore;
+                });
+            });
         }
-
-        audWindow.forEach(audIndex => {
-            vidWindow.forEach(vidIndex => {
-
-                let key = String(vidIndex)
-
-                pairs[audIndex][key] = (pairs[audIndex][key] || 0) + 1
-
-                let a = audcounts[audIndex]
-                let b = vidcounts[vidIndex]
-                let c = pairs[audIndex][key]
-
-                let pmi = correlate(a, b, c)
-         
-                pairsPmi[audIndex][key] = pmi
-             
-
-            })
-        })
-        vidWindow = []
-        audWindow = []
+        
+        // Reset buffers for the next observation window
+        vidWindow = [];
+        audWindow = [];
     }
 }
 
-function correlate(a,b,c){
-    return c / (a + b)
-}
+
 
 function getNBest(n, id) {
 
