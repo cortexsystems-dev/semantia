@@ -15,7 +15,7 @@ function poolCompare(v, learned) {
 
 function modFeature(a, b) {
     for (let i = 0; i < a.length; i++) {
-        a[i] += ((b[i] - a[i]) * 0.02)
+        a[i] += ((b[i] - a[i]) * 0.02);
     }
 }
 
@@ -51,29 +51,39 @@ function normalize(data) {
 const DECAY = 0.999; // Retains memory across roughly 1,000 frame-blocks to find stable linguistic rules
 const SMOOTHING = 1.0; // Stabilizes rare pairings from blowing up early on
 
-function computePmi() {
-    // 10 frame-block token accumulation boundary
+function computeCorrelation() {
     if (vidWindow.length > 4840) {
         if (audWindow.length > 0) {
 
-            // 1. Decay token histories gently so the system is slightly weighted toward recent semantics
-            for (let key in audcounts) audcounts[key] *= DECAY;
-            for (let key in vidcounts) vidcounts[key] *= DECAY;
+            
+            // 1. Decay audio counts
+            for (let key in audcounts) {
+                audcounts[key] *= DECAY;
+                if (audcounts[key] < 0.001) delete audcounts[key];
+            }
+            
+            // 2. Decay video counts
+            for (let key in vidcounts) {
+                vidcounts[key] *= DECAY;
+                if (vidcounts[key] < 0.001) delete vidcounts[key];
+            }
+            
+            // 3. Decay pairs
             for (let aKey in pairs) {
                 for (let vKey in pairs[aKey]) {
                     pairs[aKey][vKey] *= DECAY;
+                    if (pairs[aKey][vKey] < 0.001 && Object.keys(pairs[aKey]).length > 2) {
+                        delete pairs[aKey][vKey];
+                    }
                 }
             }
 
-            // 2. Identify unique structural tokens present in this temporal slice
             const uniqueAud = [...new Set(audWindow)];
             const uniqueVid = [...new Set(vidWindow)];
 
-            // 3. Increment historical contexts
             uniqueAud.forEach(audIndex => audcounts[audIndex] = (audcounts[audIndex] || 0) + 1);
             uniqueVid.forEach(vidIndex => vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1);
 
-            // 4. Map cross-modal pairs and calculate Sørensen-Dice correlation
             uniqueAud.forEach(audIndex => {
                 uniqueVid.forEach(vidIndex => {
                     let key = String(vidIndex);
@@ -87,20 +97,71 @@ function computePmi() {
                     let b = vidcounts[vidIndex];
                     let c = pairs[audIndex][key];
 
-                    // 5. Normalization bounded explicitly between 0.0 and 1.0
-                    // Perfect alignment yields 1.0; unaligned noise drops near 0
                     let diceScore = (2 * c) / (a + b + SMOOTHING);
 
-                    pairsPmi[audIndex][key] = Number(diceScore.toFixed(5))
+                    pairsPmi[audIndex][key] = Number(diceScore.toFixed(5));
                 });
             });
+
+            // --- FIXED BACKGROUND SUPPRESSION WITH ABSOLUTE PAIR PROTECTION ---
+            let connectionCounts = {};
+            let globalMaxDice = -1;
+            let bestAKey = null;
+            let bestVKey = null;
+
+            // 1. Map connections and locate the absolute strongest pair in the entire matrix
+            for (let aKey in pairsPmi) {
+                for (let vKey in pairsPmi[aKey]) {
+                    let currentDice = pairsPmi[aKey][vKey];
+                    
+                    // Track the single highest scoring relationship to protect it later
+                    if (currentDice > globalMaxDice) {
+                        globalMaxDice = currentDice;
+                        bestAKey = aKey;
+                        bestVKey = vKey;
+                    }
+
+                    // Count raw connections for background filtering
+                    if (pairs[aKey] && pairs[aKey][vKey] > 0.5) {
+                        connectionCounts[vKey] = (connectionCounts[vKey] || 0) + 1;
+                    }
+                }
+            }
+
+            // 2. Identify which video tokens cross the noise threshold
+            const totalActiveAudio = Object.keys(pairs).length;
+            const suppressionThreshold = Math.max(3, Math.floor(totalActiveAudio * 0.4)); 
+
+            let suppressedVideoKeys = new Set();
+            for (let vKey in vidcounts) {
+                let count = connectionCounts[vKey] || 0;
+                if (count > suppressionThreshold) {
+                    suppressedVideoKeys.add(vKey);
+                }
+            }
+
+            // 3. Apply suppression to pairs, bypassing our absolute top match coordinates
+            for (let aKey in pairsPmi) {
+                for (let vKey in pairsPmi[aKey]) {
+                    // Check if this video feature is flagged as noise
+                    if (suppressedVideoKeys.has(vKey)) {
+                        // FORCE PROTECTION: If this is the highest scoring pair in the system, skip suppression
+                        if (aKey === bestAKey && vKey === bestVKey) {
+                            continue; 
+                        }
+                        // Otherwise, suppress it safely
+                        pairsPmi[aKey][vKey] = 0.0;
+                    }
+                }
+            }
         }
 
-        // Reset buffers for the next observation window
         vidWindow = [];
         audWindow = [];
     }
 }
+
+
 
 
 

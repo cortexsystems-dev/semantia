@@ -21,11 +21,13 @@ async function initGlobalWebGPU() {
 }
 
 class FeatureMatcher {
-  constructor(maxFeatures = 1024, maxLiveVectors = 1024, vectorSize = 243) {
+  // Added alignedSize to break the 256-byte ceiling
+  constructor(maxFeatures = 1024, maxLiveVectors = 1024, vectorSize = 243, alignedSize = 256) {
     this.MAX_FEATURES = maxFeatures;
     this.MAX_LIVE_VECTORS = maxLiveVectors;
     this.VECTOR_SIZE = vectorSize;
-    this.ALIGNED_SIZE = 256;
+    this.ALIGNED_SIZE = alignedSize;
+    this.WORDS = Math.ceil(this.ALIGNED_SIZE / 4); // Calculate 32-bit words
 
     this.cpuDBMatrix = new Uint8Array(this.MAX_FEATURES * this.ALIGNED_SIZE);
     this.isInitialized = false;
@@ -34,6 +36,7 @@ class FeatureMatcher {
   init() {
     if (!isGpuAvailable || !globalGpuDevice) return;
 
+    // Dynamically inject the Word count and Vector size limits into the shader
     const shaderModule = globalGpuDevice.createShaderModule({
       code: `
         struct Params { totalFeatures: u32, totalVectors: u32 }
@@ -48,20 +51,21 @@ class FeatureMatcher {
           let vectorIndex = id.x;
           if (vectorIndex >= params.totalVectors) { return; }
           
-          let liveOffset = vectorIndex * 64u;
+          let wordsPerVector = ${this.WORDS}u;
+          let liveOffset = vectorIndex * wordsPerVector;
           var minDistance: f32 = 9999999.0;
           var bestIdx: f32 = -1.0;
           
           for (var f = 0u; f < params.totalFeatures; f = f + 1u) {
-            let dbOffset = f * 64u;
+            let dbOffset = f * wordsPerVector;
             var absoluteDistance : f32 = 0.0;
             
-            for (var i = 0u; i < 64u; i = i + 1u) {
+            for (var i = 0u; i < wordsPerVector; i = i + 1u) {
               let livePacked = liveVectors[liveOffset + i];
               let dbPacked = dbMatrix[dbOffset + i];
               
               for (var chunk = 0u; chunk < 4u; chunk = chunk + 1u) {
-                if ((i * 4u + chunk) >= 255u) { break; }
+                if ((i * 4u + chunk) >= ${this.VECTOR_SIZE}u) { break; }
                 let shift = chunk * 8u;
                 let liveVal = f32((livePacked >> shift) & 0xFFu);
                 let dbVal = f32((dbPacked >> shift) & 0xFFu);

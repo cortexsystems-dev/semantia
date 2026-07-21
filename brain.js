@@ -9,6 +9,15 @@ const overlayContext = overlayCanvas.getContext('2d');
 const MAX_VIDEO_FEATURES = 1024;
 const MAX_AUDIO_FEATURES = 1024;
 
+// Add hit trackers to stabilize feature drift
+let videoFeatureHits = new Array(MAX_VIDEO_FEATURES).fill(1);
+let audioFeatureHits = new Array(MAX_AUDIO_FEATURES).fill(1);
+
+// FPS throttling constants
+let lastVideoFrameTime = 0;
+const VIDEO_FPS = 15; // Target 15 FPS to save battery
+const VIDEO_FRAME_INTERVAL = 1000 / VIDEO_FPS;
+
 let videoMatcher;
 let audioMatcher;
 
@@ -69,10 +78,11 @@ window.toggleFastMode = function () {
 async function start() {
   await initGlobalWebGPU();
 
-  videoMatcher = new FeatureMatcher(MAX_VIDEO_FEATURES, 1024, 243);
+  videoMatcher = new FeatureMatcher(MAX_VIDEO_FEATURES, 1024, 243, 256);
   videoMatcher.init();
 
-  audioMatcher = new FeatureMatcher(MAX_AUDIO_FEATURES, 1, 255);
+  // 64 frequency bins * 15 temporal slices = 960 bytes (Aligned to 1024 bytes)
+  audioMatcher = new FeatureMatcher(MAX_AUDIO_FEATURES, 1, 960, 1024);
   audioMatcher.init();
 
   await loadState();
@@ -91,7 +101,14 @@ async function start() {
 
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  navigator.mediaDevices.getUserMedia({ audio: true })
+  // Disable built-in processing to isolate raw animal calls
+  navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    }
+  })
     .then(stream => {
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(audioCtx.destination);
@@ -115,8 +132,23 @@ async function drawVideo() {
   const checkbox = document.getElementById('fastModeCheckbox');
   const isFastMode = checkbox ? checkbox.checked : false;
 
-  // 1. Draw video frame onto base canvas
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  // Aspect Ratio Correction
+  const videoRatio = video.videoWidth / video.videoHeight;
+  const canvasRatio = canvas.width / canvas.height;
+  let drawWidth = canvas.width;
+  let drawHeight = canvas.height;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (videoRatio > canvasRatio) {
+    drawWidth = canvas.height * videoRatio;
+    offsetX = (canvas.width - drawWidth) / 2;
+  } else {
+    drawHeight = canvas.width / videoRatio;
+    offsetY = (canvas.height - drawHeight) / 2;
+  }
+
+  context.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
 
   const frame = context.getImageData(0, 0, canvas.width, canvas.height);
   let matrix = frame2matrix(canvas);
@@ -178,9 +210,7 @@ async function drawVideo() {
       vidWindow.push(bestIndex);
     }
 
-    // 3. Draw highlights onto the OVERLAY canvas so the video feed won't overwrite them
     if (isFastMode && toHighlight.includes(bestIndex)) {
-      console.log("highlighting")
       highlight(bestIndex, x, y, overlayCanvas);
     }
   }
@@ -197,7 +227,7 @@ async function drawVideo() {
   document.getElementById("vistats").innerText =
     `Video Features: ${videoFeatureCount} | Audio Features: ${audioFeatureCount}`;
 
-  computePmi();
+  computeCorrelation();
   requestAnimationFrame(drawVideo);
 }
 
@@ -209,29 +239,36 @@ function updateTokenFeed() {
   }
 }
 
-// --- Audio Processing Loop ---
 async function processAudioFeatures(analyser) {
   const bufferLength = analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
   let slidingWindow = [];
 
+  const TARGET_BINS = 64;
+  const TEMPORAL_SLICES = 15;
+  const VECTOR_SIZE = TARGET_BINS * TEMPORAL_SLICES;
+
+  let frameCounter = 0; // Add a counter to track frames
+
   async function analyzeAudio() {
     analyser.getByteFrequencyData(dataArray);
-    let currentSlice = reduceFrequencyData(dataArray, 51);
+    let currentSlice = reduceFrequencyData(dataArray, TARGET_BINS);
 
     slidingWindow.push(currentSlice);
-    if (slidingWindow.length > 5) {
+    if (slidingWindow.length > TEMPORAL_SLICES) {
       slidingWindow.shift();
     }
 
-    if (slidingWindow.length < 5) {
+    // Only process the match every 5 frames (adjust this number to change the hop size)
+    frameCounter++;
+    if (slidingWindow.length < TEMPORAL_SLICES || frameCounter % 5 !== 0) {
       requestAnimationFrame(analyzeAudio);
       return;
     }
 
-    let combinedVector = new Uint8Array(255);
-    for (let i = 0; i < 5; i++) {
-      combinedVector.set(slidingWindow[i], i * 51);
+    let combinedVector = new Uint8Array(VECTOR_SIZE);
+    for (let i = 0; i < TEMPORAL_SLICES; i++) {
+      combinedVector.set(slidingWindow[i], i * TARGET_BINS);
     }
 
     let totalVolume = 0;
@@ -240,7 +277,7 @@ async function processAudioFeatures(analyser) {
     }
     let averageVolume = totalVolume / combinedVector.length;
 
-    if (averageVolume < 8) {
+    if (averageVolume < 4) {
       toHighlight = [];
       requestAnimationFrame(analyzeAudio);
       return;
@@ -248,6 +285,8 @@ async function processAudioFeatures(analyser) {
 
     normalize(combinedVector);
     let vectors = [combinedVector];
+
+    // ... The rest of the matching logic remains exactly the same ...
 
     if (learnedAudioFeatures.length === 0) {
       audioMatcher.learnFeature(0, vectors[0]);
@@ -265,7 +304,7 @@ async function processAudioFeatures(analyser) {
     let best = bestMatches[0];
     let bestIndex = bestMatches[1];
 
-    if (best > 3000 || bestIndex === -1) {
+    if (best > 10000 || bestIndex === -1) {
       if (audioFeatureCount < MAX_AUDIO_FEATURES) {
         audioMatcher.learnFeature(audioFeatureCount, vectors[0]);
         learnedAudioFeatures.push(vectors[0]);
@@ -288,7 +327,7 @@ async function processAudioFeatures(analyser) {
       updateTokenFeed();
     }
 
-    toHighlight = getNBest(12, audWindow[audWindow.length - 1]);
+    toHighlight = getNBest(8, audWindow[audWindow.length - 1]);
     requestAnimationFrame(analyzeAudio);
   }
 

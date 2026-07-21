@@ -4,9 +4,6 @@
 [![WebGPU](https://img.shields.io/badge/Accelerated_by-WebGPU-blueviolet.svg)](#)
 [![WebAudio](https://img.shields.io/badge/Audio-Web_Audio_API-blue.svg)](#)
 
-<img width="100" height="196" alt="20260720_183530" src="https://github.com/user-attachments/assets/02619fec-da90-4004-8fbf-8ecc1d62c630" />
-<img width="150" height="196" alt="20260720_183507" src="https://github.com/user-attachments/assets/ddab5c54-fa08-4e4e-ba39-8691270bc8b9" />
-
 Semantia is a browser-native, real-time multimodal feature extraction, learning, and matching engine. Powered by **WebGPU** for massive parallel acceleration and the **Web Audio API**, it continuously analyzes live camera and microphone streams, builds a dynamic dictionary of sensory features on the fly, and calculates their cross-modal correlations.
 
 ---

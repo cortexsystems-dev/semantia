@@ -23,34 +23,28 @@ function frame2matrix(canvas) {
 function extractSections(rgbMatrix, scale = 9, rgb = true) {
     const height = rgbMatrix.length;
     const width = rgbMatrix[0].length;
-    let vectors = []
+    let vectors = [];
 
     for (let y = 0; y < height - scale; y += scale) {
         for (let x = 0; x < width - scale; x += scale) {
-            let vector = rgb ? (new Uint8Array(255)) : []
-            let i = 0
+            let vector = rgb ? (new Uint8Array(255)) : [];
+            let i = 0;
             for (let y2 = 0; y2 < scale; y2++) {
                 for (let x2 = 0; x2 < scale; x2++) {
                     if (rgb) {
-                        vector[i] = rgbMatrix[y + y2][x + x2][0]
-                        vector[i + 1] = rgbMatrix[y + y2][x + x2][1]
-                        vector[i + 2] = rgbMatrix[y + y2][x + x2][2]
-                        i += 3
+                        vector[i] = rgbMatrix[y + y2][x + x2][0];
+                        vector[i + 1] = rgbMatrix[y + y2][x + x2][1];
+                        vector[i + 2] = rgbMatrix[y + y2][x + x2][2];
+                        i += 3;
+                    } else {
+                        vector[i] = rgbMatrix[y + y2][x + x2];
+                        i++;
                     }
-                    else {
-                        vector[i] = rgbMatrix[y + y2][x + x2]
-                        i++
-                    }
-
                 }
             }
-            if (rgb) {
-                //normalize(vector)
-            }
-            vectors.push(vector)
+            vectors.push(vector);
         }
     }
-
     return vectors;
 }
 
