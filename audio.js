@@ -42,7 +42,7 @@ function drawLiveSpectrogram(analyser, canvas) {
     // Grab the current frequency data as 0-255 integers
     analyser.getByteFrequencyData(dataArray);
 
-    let reduced = reduceFrequencyData(dataArray, 51)
+    let reduced = reduceFrequencyData(dataArray, 64)
 
 
 

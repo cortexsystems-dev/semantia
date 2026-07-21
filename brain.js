@@ -34,6 +34,7 @@ let pairs = []
 let pairsPmi = []
 let vidcounts = []
 let audcounts = []
+let total = 0
 
 let toHighlight = []
 
@@ -327,7 +328,7 @@ async function processAudioFeatures(analyser) {
       updateTokenFeed();
     }
 
-    toHighlight = getNBest(8, audWindow[audWindow.length - 1]);
+    toHighlight = getNBest(2, audWindow[audWindow.length - 1]);
     requestAnimationFrame(analyzeAudio);
   }
 

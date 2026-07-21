@@ -47,42 +47,23 @@ function normalize(data) {
 
 }
 
-// Global Configuration
-const DECAY = 0.999; // Retains memory across roughly 1,000 frame-blocks to find stable linguistic rules
-const SMOOTHING = 1.0; // Stabilizes rare pairings from blowing up early on
 
 function computeCorrelation() {
     if (vidWindow.length > 4840) {
         if (audWindow.length > 0) {
 
-            
-            // 1. Decay audio counts
-            for (let key in audcounts) {
-                audcounts[key] *= DECAY;
-                if (audcounts[key] < 0.001) delete audcounts[key];
-            }
-            
-            // 2. Decay video counts
-            for (let key in vidcounts) {
-                vidcounts[key] *= DECAY;
-                if (vidcounts[key] < 0.001) delete vidcounts[key];
-            }
-            
-            // 3. Decay pairs
-            for (let aKey in pairs) {
-                for (let vKey in pairs[aKey]) {
-                    pairs[aKey][vKey] *= DECAY;
-                    if (pairs[aKey][vKey] < 0.001 && Object.keys(pairs[aKey]).length > 2) {
-                        delete pairs[aKey][vKey];
-                    }
-                }
-            }
-
             const uniqueAud = [...new Set(audWindow)];
             const uniqueVid = [...new Set(vidWindow)];
 
-            uniqueAud.forEach(audIndex => audcounts[audIndex] = (audcounts[audIndex] || 0) + 1);
-            uniqueVid.forEach(vidIndex => vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1);
+            uniqueAud.forEach(audIndex => {
+                audcounts[audIndex] = (audcounts[audIndex] || 0) + 1
+                total++
+            });
+
+            uniqueVid.forEach(vidIndex => {
+                vidcounts[vidIndex] = (vidcounts[vidIndex] || 0) + 1
+                total++
+            });
 
             uniqueAud.forEach(audIndex => {
                 uniqueVid.forEach(vidIndex => {
@@ -97,63 +78,11 @@ function computeCorrelation() {
                     let b = vidcounts[vidIndex];
                     let c = pairs[audIndex][key];
 
-                    let diceScore = (2 * c) / (a + b + SMOOTHING);
+                    let pmi = calculatePMI(a,b,c,total)
 
-                    pairsPmi[audIndex][key] = Number(diceScore.toFixed(5));
+                    pairsPmi[audIndex][key] = Number(pmi.toFixed(5));
                 });
             });
-
-            // --- FIXED BACKGROUND SUPPRESSION WITH ABSOLUTE PAIR PROTECTION ---
-            let connectionCounts = {};
-            let globalMaxDice = -1;
-            let bestAKey = null;
-            let bestVKey = null;
-
-            // 1. Map connections and locate the absolute strongest pair in the entire matrix
-            for (let aKey in pairsPmi) {
-                for (let vKey in pairsPmi[aKey]) {
-                    let currentDice = pairsPmi[aKey][vKey];
-                    
-                    // Track the single highest scoring relationship to protect it later
-                    if (currentDice > globalMaxDice) {
-                        globalMaxDice = currentDice;
-                        bestAKey = aKey;
-                        bestVKey = vKey;
-                    }
-
-                    // Count raw connections for background filtering
-                    if (pairs[aKey] && pairs[aKey][vKey] > 0.5) {
-                        connectionCounts[vKey] = (connectionCounts[vKey] || 0) + 1;
-                    }
-                }
-            }
-
-            // 2. Identify which video tokens cross the noise threshold
-            const totalActiveAudio = Object.keys(pairs).length;
-            const suppressionThreshold = Math.max(3, Math.floor(totalActiveAudio * 0.4)); 
-
-            let suppressedVideoKeys = new Set();
-            for (let vKey in vidcounts) {
-                let count = connectionCounts[vKey] || 0;
-                if (count > suppressionThreshold) {
-                    suppressedVideoKeys.add(vKey);
-                }
-            }
-
-            // 3. Apply suppression to pairs, bypassing our absolute top match coordinates
-            for (let aKey in pairsPmi) {
-                for (let vKey in pairsPmi[aKey]) {
-                    // Check if this video feature is flagged as noise
-                    if (suppressedVideoKeys.has(vKey)) {
-                        // FORCE PROTECTION: If this is the highest scoring pair in the system, skip suppression
-                        if (aKey === bestAKey && vKey === bestVKey) {
-                            continue; 
-                        }
-                        // Otherwise, suppress it safely
-                        pairsPmi[aKey][vKey] = 0.0;
-                    }
-                }
-            }
         }
 
         vidWindow = [];
@@ -161,9 +90,17 @@ function computeCorrelation() {
     }
 }
 
-
-
-
+function calculatePMI(countA, countB, countAB, n) {
+  if (countA === 0 || countB === 0 || countAB === 0 || n === 0) {
+    return 0;
+  }
+  
+  const pA = countA / n;
+  const pB = countB / n;
+  const pAB = countAB / n;
+  
+  return Math.log2(pAB / (pA * pB));
+}
 
 function getNBest(n, id) {
 
@@ -176,8 +113,9 @@ function getNBest(n, id) {
         let winner = undefined
 
         Object.keys(valObj).forEach(vId => {
-            if (valObj[vId] >= max) {
-                winner = Number(vId)
+            let vn = Number(vId)
+            if (valObj[vId] >= max && vidWindow.includes(vn)) {
+                winner = vn
                 max = valObj[vId]
             }
         })
@@ -251,6 +189,7 @@ async function saveState() {
         store.put(audcounts, 'audcounts');
         store.put(pairs, 'pairs');
         store.put(pairsPmi, 'pairsPmi');
+        store.pit(total,'total')
 
         await new Promise((resolve, reject) => {
             tx.oncomplete = () => resolve();
@@ -290,6 +229,7 @@ async function loadState() {
         audcounts = await getStorageItem(store, 'audcounts') || [];
         pairs = await getStorageItem(store, 'pairs') || {};
         pairsPmi = await getStorageItem(store, 'pairsPmi') || {};
+        total = await getStorageItem(store,'total') || 0;
 
         const fastModeCheckbox = document.getElementById('fastModeCheckbox');
         const isFastMode = fastModeCheckbox ? fastModeCheckbox.checked : false;
@@ -367,7 +307,8 @@ async function exportState() {
             vidcounts: await getStorageItem(store, 'vidcounts'),
             audcounts: await getStorageItem(store, 'audcounts'),
             pairs: await getStorageItem(store, 'pairs'),
-            pairsPmi: await getStorageItem(store, 'pairsPmi')
+            pairsPmi: await getStorageItem(store, 'pairsPmi'),
+            total: await getStorageItem(store, 'total')
         };
 
         // Stringify the data, converting typed arrays to standard arrays
