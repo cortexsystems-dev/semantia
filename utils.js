@@ -25,7 +25,7 @@ function modPool(a, b) {
 }
 
 function normalize(data) {
-    
+
     let min = 256
     let max = 0
 
@@ -55,7 +55,7 @@ function computePmi() {
     // 10 frame-block token accumulation boundary
     if (vidWindow.length > 4840) {
         if (audWindow.length > 0) {
-            
+
             // 1. Decay token histories gently so the system is slightly weighted toward recent semantics
             for (let key in audcounts) audcounts[key] *= DECAY;
             for (let key in vidcounts) vidcounts[key] *= DECAY;
@@ -77,7 +77,7 @@ function computePmi() {
             uniqueAud.forEach(audIndex => {
                 uniqueVid.forEach(vidIndex => {
                     let key = String(vidIndex);
-                    
+
                     if (!pairs[audIndex]) pairs[audIndex] = {};
                     if (!pairsPmi[audIndex]) pairsPmi[audIndex] = {};
 
@@ -90,12 +90,12 @@ function computePmi() {
                     // 5. Normalization bounded explicitly between 0.0 and 1.0
                     // Perfect alignment yields 1.0; unaligned noise drops near 0
                     let diceScore = (2 * c) / (a + b + SMOOTHING);
-                    
-                    pairsPmi[audIndex][key] = diceScore;
+
+                    pairsPmi[audIndex][key] = Number(diceScore.toFixed(5))
                 });
             });
         }
-        
+
         // Reset buffers for the next observation window
         vidWindow = [];
         audWindow = [];
@@ -131,8 +131,8 @@ function getNBest(n, id) {
 
 }
 
-function highlight(id, x, y, canvas) {
-    let ctx = canvas.getContext("2d")
+function highlight(id, x, y, cnvs) {
+    let ctx = cnvs.getContext("2d")
     // Set the border (stroke) color
     ctx.strokeStyle = '#00FF00'; // Bright green
     ctx.lineWidth = 1;
@@ -205,13 +205,15 @@ async function saveState() {
 /**
  * Loads the complete system state sequentially from IndexedDB.
  */
+/**
+ * Loads the complete system state sequentially from IndexedDB.
+ */
 async function loadState() {
     try {
         const db = await initDatabase();
         const tx = db.transaction('systemState', 'readonly');
         const store = tx.objectStore('systemState');
 
-        // Read the primary check variable inside the active transaction window
         const savedVideoCount = await getStorageItem(store, 'videoFeatureCount');
 
         if (savedVideoCount === undefined) {
@@ -219,7 +221,6 @@ async function loadState() {
             return;
         }
 
-        // Pull the rest of the payloads sequentially
         videoFeatureCount = savedVideoCount;
         audioFeatureCount = await getStorageItem(store, 'audioFeatureCount') || 0;
         learnedVideoFeatures = await getStorageItem(store, 'learnedVideoFeatures') || [];
@@ -229,11 +230,17 @@ async function loadState() {
         pairs = await getStorageItem(store, 'pairs') || {};
         pairsPmi = await getStorageItem(store, 'pairsPmi') || {};
 
+        const fastModeCheckbox = document.getElementById('fastModeCheckbox');
+        const isFastMode = fastModeCheckbox ? fastModeCheckbox.checked : false;
+
         // Sync GPU Memory and rebuild UI elements for Video
         for (let i = 0; i < videoFeatureCount; i++) {
             if (learnedVideoFeatures[i]) {
                 videoMatcher.learnFeature(i, learnedVideoFeatures[i]);
-                paintVector(learnedVideoFeatures[i], true, 0, 0, i, true);
+                // Only paint to the DOM automatically if Fast Mode is off
+                if (!isFastMode) {
+                    paintVector(learnedVideoFeatures[i], true, 0, 0, i, true);
+                }
             }
         }
 
@@ -270,5 +277,64 @@ async function reset() {
         window.location.reload();
     } catch (error) {
         console.error("Reset failed:", error);
+    }
+}
+
+/**
+ * Exports the complete IndexedDB state to a downloadable JSON file.
+ */
+async function exportState() {
+    try {
+        const db = await initDatabase();
+        const tx = db.transaction('systemState', 'readonly');
+        const store = tx.objectStore('systemState');
+
+        // 1. Fetch the video count first to check if the database is empty
+        const savedVideoCount = await getStorageItem(store, 'videoFeatureCount');
+        
+        if (savedVideoCount === undefined) {
+            alert("No data found! Please wait for the system to auto-save (up to 30 seconds) before exporting.");
+            return; // Halt the export
+        }
+
+        // 2. Fetch the rest of the tracked keys
+        const exportData = {
+            videoFeatureCount: savedVideoCount,
+            audioFeatureCount: await getStorageItem(store, 'audioFeatureCount'),
+            learnedVideoFeatures: await getStorageItem(store, 'learnedVideoFeatures'),
+            learnedAudioFeatures: await getStorageItem(store, 'learnedAudioFeatures'),
+            vidcounts: await getStorageItem(store, 'vidcounts'),
+            audcounts: await getStorageItem(store, 'audcounts'),
+            pairs: await getStorageItem(store, 'pairs'),
+            pairsPmi: await getStorageItem(store, 'pairsPmi')
+        };
+
+        // Stringify the data, converting typed arrays to standard arrays
+        const jsonString = JSON.stringify(exportData, (key, value) => {
+            if (value instanceof Uint8Array || value instanceof Float32Array) {
+                return Array.from(value);
+            }
+            return value;
+        });
+
+        // Create a blob and trigger a silent download
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `semantia_state_${new Date().getTime()}.json`;
+        
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up the DOM and memory
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log("Database exported successfully.");
+    } catch (error) {
+        console.error("Export failed:", error);
+        alert("Failed to export database. Check console for details.");
     }
 }
