@@ -14,8 +14,10 @@ function poolCompare(v, learned) {
 }
 
 function modFeature(a, b) {
+    if (audWindow.length > 0){
     for (let i = 0; i < a.length; i++) {
         a[i] += ((b[i] - a[i]) * 0.02);
+    }
     }
 }
 
@@ -51,9 +53,9 @@ function normalize(data) {
 function computeCorrelation() {
     if (vidWindow.length > 4840) {
         if (audWindow.length > 0) {
-
             const uniqueAud = [...new Set(audWindow)];
             const uniqueVid = [...new Set(vidWindow)];
+            
 
             uniqueAud.forEach(audIndex => {
                 audcounts[audIndex] = (audcounts[audIndex] || 0) + 1
@@ -99,7 +101,9 @@ function calculatePMI(countA, countB, countAB, n) {
   const pB = countB / n;
   const pAB = countAB / n;
   
-  return Math.log2(pAB / (pA * pB));
+  // includes tau of 5 for confidence factor
+  
+  return pAB / (pA * pB+ 5);
 }
 
 function getNBest(n, id) {
@@ -107,9 +111,10 @@ function getNBest(n, id) {
     let valObj = JSON.parse(JSON.stringify(pairsPmi[id]))
 
     let best = []
+    confidences = []
 
     for (let i = 0; i < n; i++) {
-        let max = -10
+        let max = -Infinity
         let winner = undefined
 
         Object.keys(valObj).forEach(vId => {
@@ -121,6 +126,7 @@ function getNBest(n, id) {
         })
 
         best.push(winner)
+        confidences.push(max)
 
         delete valObj[String(winner)]
 
@@ -189,7 +195,7 @@ async function saveState() {
         store.put(audcounts, 'audcounts');
         store.put(pairs, 'pairs');
         store.put(pairsPmi, 'pairsPmi');
-        store.pit(total,'total')
+        store.put(total,'total')
 
         await new Promise((resolve, reject) => {
             tx.oncomplete = () => resolve();
@@ -277,6 +283,7 @@ async function reset() {
 
         window.location.reload();
     } catch (error) {
+        alert("reset failed")
         console.error("Reset failed:", error);
     }
 }

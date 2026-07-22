@@ -147,7 +147,7 @@ button.action-btn:active {
       grid-column: 1 / -1;
     }
 
-    .panel h3 {
+    .panel h3, .panel h4 {
       margin: 0 0 15px 0;
       width: 100%;
       border-bottom: 1px solid #2a2d3d;
@@ -240,6 +240,7 @@ button.action-btn:active {
     <div class="dashboard">
       <div class="panel">
         <h3>Live Video Feed</h3>
+        <h4 id="conf">Max confidence:</h4>
         <div style="position: relative; width: 200px; height: 200px;">
           <!-- Base Video Canvas -->
           <canvas id="canvas" width="200" height="200"
@@ -263,7 +264,7 @@ button.action-btn:active {
     </div>
 
     <div class="panel panel-wide">
-      <h3>Audio Token Feed (audWindow)</h3>
+      <h3>Audio Token Feed</h3>
       <div id="audioTokenFeed"
         style="font-family: 'Courier New', Courier, monospace; color: var(--accent-color); font-size: 1.1rem; word-break: break-all; max-height: 100px; overflow-y: auto; width: 100%;">
         Waiting for tokens...

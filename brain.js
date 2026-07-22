@@ -35,6 +35,7 @@ let pairsPmi = []
 let vidcounts = []
 let audcounts = []
 let total = 0
+let confidences = []
 
 let toHighlight = []
 
@@ -172,6 +173,8 @@ async function drawVideo() {
   let bestMatches = await videoMatcher.processVectors(vectors, frameFeatureCount);
 
   overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  
+  let first = false
 
   let xSteps = [];
   let ySteps = [];
@@ -213,8 +216,19 @@ async function drawVideo() {
 
     if (isFastMode && toHighlight.includes(bestIndex)) {
       highlight(bestIndex, x, y, overlayCanvas);
+      if (!first){
+      let index = toHighlight.indexOf(bestIndex)
+      document.getElementById("conf").innerText = "Max confidence: " + ( confidences[index]*100).toFixed(3) + " %"
+      first = true
+      }
+      
     }
   }
+  
+  if (toHighlight[0] == undefined){
+    document.getElementById("conf").innerText = "Max confidence: 0 %"
+  }
+  //toHighlight = []
 
   if (!isFastMode) {
     let poolRows = [];
@@ -257,12 +271,12 @@ async function processAudioFeatures(analyser) {
 
     slidingWindow.push(currentSlice);
     if (slidingWindow.length > TEMPORAL_SLICES) {
-      slidingWindow.shift();
+      slidingWindow = []
     }
 
     // Only process the match every 5 frames (adjust this number to change the hop size)
     frameCounter++;
-    if (slidingWindow.length < TEMPORAL_SLICES || frameCounter % 5 !== 0) {
+    if (slidingWindow.length < TEMPORAL_SLICES) {
       requestAnimationFrame(analyzeAudio);
       return;
     }
@@ -279,7 +293,6 @@ async function processAudioFeatures(analyser) {
     let averageVolume = totalVolume / combinedVector.length;
 
     if (averageVolume < 4) {
-      toHighlight = [];
       requestAnimationFrame(analyzeAudio);
       return;
     }
@@ -305,7 +318,7 @@ async function processAudioFeatures(analyser) {
     let best = bestMatches[0];
     let bestIndex = bestMatches[1];
 
-    if (best > 10000 || bestIndex === -1) {
+    if (best > 5000 || bestIndex === -1) {
       if (audioFeatureCount < MAX_AUDIO_FEATURES) {
         audioMatcher.learnFeature(audioFeatureCount, vectors[0]);
         learnedAudioFeatures.push(vectors[0]);
