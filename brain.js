@@ -218,7 +218,7 @@ async function drawVideo() {
       highlight(bestIndex, x, y, overlayCanvas);
       if (!first){
       let index = toHighlight.indexOf(bestIndex)
-      document.getElementById("conf").innerText = "Max confidence: " + ( confidences[index]*100).toFixed(3) + " %"
+      document.getElementById("conf").innerText = "Max confidence: " + ( confidences[index]*600).toFixed(3) + " %"
       first = true
       }
       
